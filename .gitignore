@@ -47,3 +47,4 @@ backend/data/templates/
 backend/data/approvals/
 templates/
 approvals/
+approval/
