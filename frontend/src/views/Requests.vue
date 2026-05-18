@@ -4,7 +4,7 @@
     <div class="page-header">
       <div class="header-left">
         <h1 class="page-title">{{ title }}</h1>
-        <p class="page-subtitle">共 {{ requests.length }} 条记录</p>
+        <p class="page-subtitle">共 {{ pagination.total }} 条记录</p>
       </div>
       <div class="header-right">
         <el-input
@@ -13,6 +13,7 @@
           prefix-icon="Search"
           clearable
           class="search-input"
+          @input="handleSearch"
         />
         <el-button v-if="authStore.user?.role === 'applicant'" type="primary" @click="router.push('/requests/new')">
           <el-icon><Plus /></el-icon>
@@ -23,7 +24,7 @@
 
     <!-- Filters -->
     <div class="filters-bar">
-      <el-radio-group v-model="statusFilter" size="small">
+      <el-radio-group v-model="statusFilter" size="small" @change="handleFilterChange">
         <el-radio-button label="">全部</el-radio-button>
         <el-radio-button label="pending">待审批</el-radio-button>
         <el-radio-button label="approved">已通过</el-radio-button>
@@ -35,7 +36,7 @@
 
     <!-- Table -->
     <div class="table-wrapper">
-      <el-table :data="filteredRequests" style="width: 100%" :header-cell-style="{ background: 'var(--gray-50)' }">
+      <el-table :data="requests" style="width: 100%" :header-cell-style="{ background: 'var(--gray-50)' }">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="org_name" label="组织" min-width="180" show-overflow-tooltip />
         <el-table-column prop="title" label="标题" min-width="240" show-overflow-tooltip />
@@ -62,15 +63,25 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- Pagination -->
+      <Pagination
+        :total="pagination.total"
+        :page="pagination.page"
+        :page-size="pagination.pageSize"
+        @update:page="handlePageChange"
+        @update:page-size="handlePageSizeChange"
+      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import api from '../api'
+import Pagination from '../components/Pagination.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -78,6 +89,14 @@ const authStore = useAuthStore()
 const requests = ref([])
 const searchText = ref('')
 const statusFilter = ref(route.query.status as string || '')
+const pagination = ref({
+  page: Number(route.query.page) || 1,
+  pageSize: Number(route.query.pageSize) || 20,
+  total: 0,
+  totalPages: 0
+})
+
+let searchTimeout: ReturnType<typeof setTimeout> | null = null
 
 const title = computed(() => {
   if (authStore.user?.role === 'liaison') return '我的请示'
@@ -85,23 +104,7 @@ const title = computed(() => {
   return '所有请示'
 })
 
-const filteredRequests = computed(() => {
-  let result = requests.value
-
-  if (statusFilter.value) {
-    result = result.filter((r: any) => r.status === statusFilter.value)
-  }
-
-  if (searchText.value) {
-    const search = searchText.value.toLowerCase()
-    result = result.filter((r: any) =>
-      r.title?.toLowerCase().includes(search) ||
-      r.org_name?.toLowerCase().includes(search)
-    )
-  }
-
-  return result
-})
+import { computed } from 'vue'
 
 function statusType(status: string) {
   const types: Record<string, string> = {
@@ -128,21 +131,68 @@ function statusLabel(status: string) {
   return labels[status] || status
 }
 
-watch(statusFilter, (val) => {
-  router.replace({ query: val ? { status: val } : {} })
-})
+function handleSearch() {
+  if (searchTimeout) {
+    clearTimeout(searchTimeout)
+  }
+  searchTimeout = setTimeout(() => {
+    pagination.value.page = 1
+    fetchRequests()
+  }, 300)
+}
 
-onMounted(async () => {
+function handleFilterChange() {
+  pagination.value.page = 1
+  fetchRequests()
+}
+
+function handlePageChange(page: number) {
+  pagination.value.page = page
+  fetchRequests()
+}
+
+function handlePageSizeChange(pageSize: number) {
+  pagination.value.pageSize = pageSize
+  pagination.value.page = 1
+  fetchRequests()
+}
+
+async function fetchRequests() {
   try {
-    const params: any = {}
-    if (route.query.status) {
-      params.status = route.query.status
+    const params: any = {
+      page: pagination.value.page,
+      pageSize: pagination.value.pageSize
+    }
+    if (statusFilter.value) {
+      params.status = statusFilter.value
+    }
+    if (searchText.value) {
+      params.keyword = searchText.value
     }
     const response = await api.get('/requests', { params })
-    requests.value = response.data
+    requests.value = response.data.data
+    pagination.value.total = response.data.pagination.total
+    pagination.value.totalPages = response.data.pagination.totalPages
   } catch (error) {
     console.error('获取请示列表失败:', error)
   }
+}
+
+watch(() => route.query, (query) => {
+  if (query.status) {
+    statusFilter.value = query.status as string
+  }
+  if (query.page) {
+    pagination.value.page = Number(query.page)
+  }
+  if (query.pageSize) {
+    pagination.value.pageSize = Number(query.pageSize)
+  }
+  fetchRequests()
+}, { immediate: true })
+
+onMounted(() => {
+  fetchRequests()
 })
 </script>
 

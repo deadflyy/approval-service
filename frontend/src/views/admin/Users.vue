@@ -4,9 +4,23 @@
     <div class="page-header">
       <div class="header-left">
         <h1 class="page-title">用户管理</h1>
-        <p class="page-subtitle">共 {{ users.length }} 个用户</p>
+        <p class="page-subtitle">共 {{ pagination.total }} 个用户</p>
       </div>
       <div class="header-right">
+        <el-input
+          v-model="searchText"
+          placeholder="搜索用户..."
+          prefix-icon="Search"
+          clearable
+          class="search-input"
+          @input="handleSearch"
+        />
+        <el-select v-model="roleFilter" placeholder="角色筛选" clearable @change="handleFilterChange" class="filter-select">
+          <el-option label="申请者" value="applicant" />
+          <el-option label="批复者" value="approver" />
+          <el-option label="联络员" value="liaison" />
+          <el-option label="管理员" value="admin" />
+        </el-select>
         <el-button type="primary" @click="showDialog = true">
           <el-icon><Plus /></el-icon>
           新增用户
@@ -40,6 +54,15 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- Pagination -->
+      <Pagination
+        :total="pagination.total"
+        :page="pagination.page"
+        :page-size="pagination.pageSize"
+        @update:page="handlePageChange"
+        @update:page-size="handlePageSizeChange"
+      />
     </div>
 
     <!-- User dialog -->
@@ -82,17 +105,30 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import api from '../../api'
+import Pagination from '../../components/Pagination.vue'
 
+const route = useRoute()
 const loading = ref(false)
 const users = ref([])
+const searchText = ref('')
+const roleFilter = ref('')
 const showDialog = ref(false)
 const showAuthDialog = ref(false)
 const editingUser = ref<any>(null)
 const editingUserId = ref<number | null>(null)
 const selectedOrgs = ref<number[]>([])
 const allOrgs = ref<any[]>([])
+const pagination = ref({
+  page: Number(route.query.page) || 1,
+  pageSize: Number(route.query.pageSize) || 20,
+  total: 0,
+  totalPages: 0
+})
+
+let searchTimeout: ReturnType<typeof setTimeout> | null = null
 
 const form = ref({
   username: '',
@@ -150,6 +186,32 @@ async function editAuth(user: any) {
   }
 }
 
+function handleSearch() {
+  if (searchTimeout) {
+    clearTimeout(searchTimeout)
+  }
+  searchTimeout = setTimeout(() => {
+    pagination.value.page = 1
+    loadUsers()
+  }, 300)
+}
+
+function handleFilterChange() {
+  pagination.value.page = 1
+  loadUsers()
+}
+
+function handlePageChange(page: number) {
+  pagination.value.page = page
+  loadUsers()
+}
+
+function handlePageSizeChange(pageSize: number) {
+  pagination.value.pageSize = pageSize
+  pagination.value.page = 1
+  loadUsers()
+}
+
 async function saveUser() {
   if (!form.value.username || !form.value.name || !form.value.role) {
     ElMessage.warning('请填写所有必填字段')
@@ -204,8 +266,20 @@ async function deleteUser(id: number) {
 
 async function loadUsers() {
   try {
-    const response = await api.get('/users')
-    users.value = response.data
+    const params: any = {
+      page: pagination.value.page,
+      pageSize: pagination.value.pageSize
+    }
+    if (searchText.value) {
+      params.keyword = searchText.value
+    }
+    if (roleFilter.value) {
+      params.role = roleFilter.value
+    }
+    const response = await api.get('/users', { params })
+    users.value = response.data.data
+    pagination.value.total = response.data.pagination.total
+    pagination.value.totalPages = response.data.pagination.totalPages
   } catch (error) {
     console.error('获取用户列表失败:', error)
   }
@@ -242,6 +316,20 @@ onMounted(() => {
   color: var(--text-muted);
   font-size: 13px;
   margin-top: 4px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.search-input {
+  width: 200px;
+}
+
+.filter-select {
+  width: 120px;
 }
 
 /* Table */

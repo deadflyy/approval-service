@@ -1,14 +1,40 @@
 import { Router, Response } from 'express';
 import { authenticateToken, requireRole, AuthRequest } from '../middleware/auth';
+import { buildPaginatedQuery, PaginationParams } from '../utils/pagination';
+import { paginationValidation } from '../middleware/pagination';
 
 const router = Router();
 
 router.use(authenticateToken);
 
-router.get('/', (req: AuthRequest, res: Response) => {
+router.get('/', paginationValidation, (req: AuthRequest, res: Response) => {
+  const { level, keyword, page, pageSize } = req.query;
   const db = req.app.locals.db;
-  const orgs = db.prepare('SELECT * FROM organizations ORDER BY id').all();
-  res.json(orgs);
+
+  const params: PaginationParams = {
+    page: Number(page),
+    pageSize: Number(pageSize),
+    keyword: keyword as string
+  };
+
+  const filters: Record<string, any> = {};
+
+  if (level) {
+    filters['level'] = level;
+  }
+
+  const result = buildPaginatedQuery(
+    db,
+    'organizations',
+    'SELECT *',
+    params,
+    filters,
+    ['name'],
+    '',
+    'id'
+  );
+
+  res.json(result);
 });
 
 router.post('/', requireRole('admin'), (req: AuthRequest, res: Response) => {

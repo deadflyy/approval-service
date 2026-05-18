@@ -213,7 +213,7 @@ async function saveStats() {
 async function loadRequests() {
   try {
     const response = await api.get('/requests')
-    requests.value = response.data
+    requests.value = response.data.data
   } catch (error) {
     console.error('获取请示列表失败:', error)
   }

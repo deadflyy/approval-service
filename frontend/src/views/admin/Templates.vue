@@ -4,9 +4,17 @@
     <div class="page-header">
       <div class="header-left">
         <h1 class="page-title">模板管理</h1>
-        <p class="page-subtitle">共 {{ templates.length }} 个模板</p>
+        <p class="page-subtitle">共 {{ pagination.total }} 个模板</p>
       </div>
       <div class="header-right">
+        <el-input
+          v-model="searchText"
+          placeholder="搜索模板..."
+          prefix-icon="Search"
+          clearable
+          class="search-input"
+          @input="handleSearch"
+        />
         <el-button type="primary" @click="showUploadDialog = true">
           <el-icon><Upload /></el-icon>
           上传模板
@@ -45,6 +53,15 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- Pagination -->
+      <Pagination
+        :total="pagination.total"
+        :page="pagination.page"
+        :page-size="pagination.pageSize"
+        @update:page="handlePageChange"
+        @update:page-size="handlePageSizeChange"
+      />
     </div>
 
     <!-- Upload dialog -->
@@ -101,15 +118,27 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import api from '../../api'
+import Pagination from '../../components/Pagination.vue'
 
+const route = useRoute()
 const loading = ref(false)
 const templates = ref([])
+const searchText = ref('')
 const showUploadDialog = ref(false)
 const showEditDialog = ref(false)
 const editingTemplate = ref<any>(null)
 const uploadFile = ref<File | null>(null)
+const pagination = ref({
+  page: Number(route.query.page) || 1,
+  pageSize: Number(route.query.pageSize) || 20,
+  total: 0,
+  totalPages: 0
+})
+
+let searchTimeout: ReturnType<typeof setTimeout> | null = null
 
 const categories = ['成立', '换届', '增补', '调整', '更名', '撤销', '延期', '架构调整']
 
@@ -142,6 +171,27 @@ function editTemplate(template: any) {
     step: template.step
   }
   showEditDialog.value = true
+}
+
+function handleSearch() {
+  if (searchTimeout) {
+    clearTimeout(searchTimeout)
+  }
+  searchTimeout = setTimeout(() => {
+    pagination.value.page = 1
+    loadTemplates()
+  }, 300)
+}
+
+function handlePageChange(page: number) {
+  pagination.value.page = page
+  loadTemplates()
+}
+
+function handlePageSizeChange(pageSize: number) {
+  pagination.value.pageSize = pageSize
+  pagination.value.page = 1
+  loadTemplates()
 }
 
 async function uploadTemplate() {
@@ -199,8 +249,17 @@ async function deleteTemplate(id: number) {
 
 async function loadTemplates() {
   try {
-    const response = await api.get('/templates')
-    templates.value = response.data
+    const params: any = {
+      page: pagination.value.page,
+      pageSize: pagination.value.pageSize
+    }
+    if (searchText.value) {
+      params.keyword = searchText.value
+    }
+    const response = await api.get('/templates', { params })
+    templates.value = response.data.data
+    pagination.value.total = response.data.pagination.total
+    pagination.value.totalPages = response.data.pagination.totalPages
   } catch (error) {
     console.error('获取模板列表失败:', error)
   }
@@ -236,6 +295,16 @@ onMounted(() => {
   color: var(--text-muted);
   font-size: 13px;
   margin-top: 4px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.search-input {
+  width: 240px;
 }
 
 .table-wrapper {

@@ -1,52 +1,65 @@
 import { Router, Response } from 'express';
 import { authenticateToken, requireRole, AuthRequest } from '../middleware/auth';
 import { generateApprovalDoc } from '../services/docx-generator';
+import { buildPaginatedQuery, PaginationParams } from '../utils/pagination';
+import { paginationValidation } from '../middleware/pagination';
 
 const router = Router();
 
 router.use(authenticateToken);
 
-router.get('/', (req: AuthRequest, res: Response) => {
-  const { status, liaison } = req.query;
+router.get('/', paginationValidation, (req: AuthRequest, res: Response) => {
+  const { status, liaison, category, keyword, page, pageSize } = req.query;
   const db = req.app.locals.db;
   const user = req.user!;
 
-  let sql = `
-    SELECT r.*, o.name as org_name, u.name as user_name, l.name as liaison_name
-    FROM requests r
-    LEFT JOIN organizations o ON r.org_id = o.id
-    LEFT JOIN users u ON r.user_id = u.id
-    LEFT JOIN users l ON r.liaison_id = l.id
-  `;
-  const params: any[] = [];
+  const params: PaginationParams = {
+    page: Number(page),
+    pageSize: Number(pageSize),
+    keyword: keyword as string
+  };
+
+  const filters: Record<string, any> = {};
   const conditions: string[] = [];
 
+  // Role-based filtering
   if (user.role === 'applicant') {
     conditions.push('r.user_id = ?');
-    params.push(user.id);
+    params[user.id] = user.id;
   } else if (user.role === 'liaison') {
     conditions.push('r.liaison_id = ?');
-    params.push(user.id);
+    params[user.id] = user.id;
   }
 
+  // Status filter
   if (status) {
-    conditions.push('r.status = ?');
-    params.push(status);
+    filters['r.status'] = status;
   }
 
+  // Liaison filter
   if (liaison === 'me') {
-    conditions.push('r.liaison_id = ?');
-    params.push(user.id);
+    filters['r.liaison_id'] = user.id;
   }
 
-  if (conditions.length > 0) {
-    sql += ' WHERE ' + conditions.join(' AND ');
+  // Category filter
+  if (category) {
+    filters['r.category'] = category;
   }
 
-  sql += ' ORDER BY r.created_at DESC';
+  const result = buildPaginatedQuery(
+    db,
+    'requests r',
+    `SELECT r.*, o.name as org_name, u.name as user_name, l.name as liaison_name`,
+    params,
+    filters,
+    ['r.title', 'o.name'],
+    `LEFT JOIN organizations o ON r.org_id = o.id
+     LEFT JOIN users u ON r.user_id = u.id
+     LEFT JOIN users l ON r.liaison_id = l.id`,
+    'r.created_at DESC'
+  );
 
-  const requests = db.prepare(sql).all(...params);
-  res.json(requests);
+  res.json(result);
 });
 
 router.post('/', requireRole('applicant'), (req: AuthRequest, res: Response) => {

@@ -4,9 +4,22 @@
     <div class="page-header">
       <div class="header-left">
         <h1 class="page-title">组织管理</h1>
-        <p class="page-subtitle">共 {{ organizations.length }} 个组织</p>
+        <p class="page-subtitle">共 {{ pagination.total }} 个组织</p>
       </div>
       <div class="header-right">
+        <el-input
+          v-model="searchText"
+          placeholder="搜索组织..."
+          prefix-icon="Search"
+          clearable
+          class="search-input"
+          @input="handleSearch"
+        />
+        <el-select v-model="levelFilter" placeholder="层级筛选" clearable @change="handleFilterChange" class="filter-select">
+          <el-option label="党委" value="party_committee" />
+          <el-option label="总支" value="general_branch" />
+          <el-option label="支部" value="branch" />
+        </el-select>
         <el-button type="primary" @click="showDialog = true">
           <el-icon><Plus /></el-icon>
           新增组织
@@ -43,6 +56,15 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- Pagination -->
+      <Pagination
+        :total="pagination.total"
+        :page="pagination.page"
+        :page-size="pagination.pageSize"
+        @update:page="handlePageChange"
+        @update:page-size="handlePageSizeChange"
+      />
     </div>
 
     <!-- Dialog -->
@@ -74,13 +96,26 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import api from '../../api'
+import Pagination from '../../components/Pagination.vue'
 
+const route = useRoute()
 const loading = ref(false)
 const organizations = ref([])
+const searchText = ref('')
+const levelFilter = ref('')
 const showDialog = ref(false)
 const editingOrg = ref<any>(null)
+const pagination = ref({
+  page: Number(route.query.page) || 1,
+  pageSize: Number(route.query.pageSize) || 20,
+  total: 0,
+  totalPages: 0
+})
+
+let searchTimeout: ReturnType<typeof setTimeout> | null = null
 
 const form = ref({
   name: '',
@@ -122,6 +157,32 @@ function editOrg(org: any) {
   showDialog.value = true
 }
 
+function handleSearch() {
+  if (searchTimeout) {
+    clearTimeout(searchTimeout)
+  }
+  searchTimeout = setTimeout(() => {
+    pagination.value.page = 1
+    loadOrganizations()
+  }, 300)
+}
+
+function handleFilterChange() {
+  pagination.value.page = 1
+  loadOrganizations()
+}
+
+function handlePageChange(page: number) {
+  pagination.value.page = page
+  loadOrganizations()
+}
+
+function handlePageSizeChange(pageSize: number) {
+  pagination.value.pageSize = pageSize
+  pagination.value.page = 1
+  loadOrganizations()
+}
+
 async function saveOrg() {
   if (!form.value.name || !form.value.level) {
     ElMessage.warning('请填写所有必填字段')
@@ -159,8 +220,20 @@ async function deleteOrg(id: number) {
 
 async function loadOrganizations() {
   try {
-    const response = await api.get('/organizations')
-    organizations.value = response.data
+    const params: any = {
+      page: pagination.value.page,
+      pageSize: pagination.value.pageSize
+    }
+    if (searchText.value) {
+      params.keyword = searchText.value
+    }
+    if (levelFilter.value) {
+      params.level = levelFilter.value
+    }
+    const response = await api.get('/organizations', { params })
+    organizations.value = response.data.data
+    pagination.value.total = response.data.pagination.total
+    pagination.value.totalPages = response.data.pagination.totalPages
   } catch (error) {
     console.error('获取组织列表失败:', error)
   }
@@ -196,6 +269,20 @@ onMounted(() => {
   color: var(--text-muted);
   font-size: 13px;
   margin-top: 4px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.search-input {
+  width: 200px;
+}
+
+.filter-select {
+  width: 120px;
 }
 
 .table-wrapper {

@@ -139,7 +139,7 @@ const menuItems = computed(() => {
 onMounted(async () => {
   try {
     const response = await api.get('/requests')
-    const requests = response.data
+    const requests = response.data.data
     stats.value = {
       total: requests.length,
       pending: requests.filter((r: any) => r.status === 'pending').length,

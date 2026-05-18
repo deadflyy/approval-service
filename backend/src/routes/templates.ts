@@ -3,6 +3,8 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { authenticateToken, requireRole, AuthRequest } from '../middleware/auth';
+import { buildPaginatedQuery, PaginationParams } from '../utils/pagination';
+import { paginationValidation } from '../middleware/pagination';
 
 const router = Router();
 const UPLOAD_DIR = path.join(__dirname, '..', '..', 'data', 'templates');
@@ -20,10 +22,34 @@ const upload = multer({ storage });
 
 router.use(authenticateToken);
 
-router.get('/', (req: AuthRequest, res: Response) => {
+router.get('/', paginationValidation, (req: AuthRequest, res: Response) => {
+  const { category, keyword, page, pageSize } = req.query;
   const db = req.app.locals.db;
-  const templates = db.prepare('SELECT * FROM templates ORDER BY category, step').all();
-  res.json(templates);
+
+  const params: PaginationParams = {
+    page: Number(page),
+    pageSize: Number(pageSize),
+    keyword: keyword as string
+  };
+
+  const filters: Record<string, any> = {};
+
+  if (category) {
+    filters['category'] = category;
+  }
+
+  const result = buildPaginatedQuery(
+    db,
+    'templates',
+    'SELECT *',
+    params,
+    filters,
+    ['category', 'step'],
+    '',
+    'category, step'
+  );
+
+  res.json(result);
 });
 
 router.post('/', requireRole('admin'), upload.single('file'), (req: AuthRequest, res: Response) => {

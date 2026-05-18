@@ -1,15 +1,41 @@
 import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { authenticateToken, requireRole, AuthRequest } from '../middleware/auth';
+import { buildPaginatedQuery, PaginationParams } from '../utils/pagination';
+import { paginationValidation } from '../middleware/pagination';
 
 const router = Router();
 
 router.use(authenticateToken);
 
-router.get('/', requireRole('admin'), (req: AuthRequest, res: Response) => {
+router.get('/', requireRole('admin'), paginationValidation, (req: AuthRequest, res: Response) => {
+  const { role, keyword, page, pageSize } = req.query;
   const db = req.app.locals.db;
-  const users = db.prepare('SELECT id, username, name, role, created_at FROM users ORDER BY id').all();
-  res.json(users);
+
+  const params: PaginationParams = {
+    page: Number(page),
+    pageSize: Number(pageSize),
+    keyword: keyword as string
+  };
+
+  const filters: Record<string, any> = {};
+
+  if (role) {
+    filters['role'] = role;
+  }
+
+  const result = buildPaginatedQuery(
+    db,
+    'users',
+    'SELECT id, username, name, role, created_at',
+    params,
+    filters,
+    ['username', 'name'],
+    '',
+    'id'
+  );
+
+  res.json(result);
 });
 
 router.post('/', requireRole('admin'), (req: AuthRequest, res: Response) => {
