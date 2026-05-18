@@ -19,7 +19,7 @@
 
     <!-- Table -->
     <div class="table-wrapper">
-      <el-table :data="filteredRequests" style="width: 100%" max-height="calc(100vh - 240px)">
+      <el-table :data="requests" style="width: 100%" max-height="calc(100vh - 280px)">
         <el-table-column prop="id" label="ID" width="50" fixed />
         <el-table-column prop="org_name" label="组织" width="180" fixed show-overflow-tooltip />
         <el-table-column prop="title" label="标题" width="200" show-overflow-tooltip />
@@ -60,6 +60,15 @@
           </template>
         </el-table-column>
       </el-table>
+
+      <!-- Pagination -->
+      <Pagination
+        :total="pagination.total"
+        :page="pagination.page"
+        :page-size="pagination.pageSize"
+        @update:page="handlePageChange"
+        @update:page-size="handlePageSizeChange"
+      />
     </div>
 
     <!-- Edit dialog -->
@@ -141,23 +150,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import api from '../../api'
+import Pagination from '../../components/Pagination.vue'
 
 const loading = ref(false)
 const requests = ref([])
 const showDialog = ref(false)
 const editingId = ref<number | null>(null)
 const searchText = ref('')
-
-const filteredRequests = computed(() => {
-  if (!searchText.value) return requests.value
-  const search = searchText.value.toLowerCase()
-  return requests.value.filter((r: any) =>
-    r.org_name?.toLowerCase().includes(search) ||
-    r.title?.toLowerCase().includes(search)
-  )
+const pagination = ref({
+  page: 1,
+  pageSize: 20,
+  total: 0,
+  totalPages: 0
 })
 
 const form = ref({
@@ -175,6 +182,17 @@ const form = ref({
   branch_deputy_count: 0,
   branch_member_count: 0
 })
+
+function handlePageChange(page: number) {
+  pagination.value.page = page
+  loadRequests()
+}
+
+function handlePageSizeChange(pageSize: number) {
+  pagination.value.pageSize = pageSize
+  pagination.value.page = 1
+  loadRequests()
+}
 
 function editStats(request: any) {
   editingId.value = request.id
@@ -212,12 +230,26 @@ async function saveStats() {
 
 async function loadRequests() {
   try {
-    const response = await api.get('/requests')
+    const params: any = {
+      page: pagination.value.page,
+      pageSize: pagination.value.pageSize
+    }
+    if (searchText.value) {
+      params.keyword = searchText.value
+    }
+    const response = await api.get('/requests', { params })
     requests.value = response.data.data
+    pagination.value.total = response.data.pagination.total
+    pagination.value.totalPages = response.data.pagination.totalPages
   } catch (error) {
     console.error('获取请示列表失败:', error)
   }
 }
+
+watch(searchText, () => {
+  pagination.value.page = 1
+  loadRequests()
+})
 
 onMounted(() => {
   loadRequests()

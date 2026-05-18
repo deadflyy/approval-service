@@ -138,13 +138,16 @@ const menuItems = computed(() => {
 
 onMounted(async () => {
   try {
-    const response = await api.get('/requests')
-    const requests = response.data.data
+    const [totalRes, pendingRes, rejectedRes] = await Promise.all([
+      api.get('/requests', { params: { pageSize: 10 } }),
+      api.get('/requests', { params: { status: 'pending', pageSize: 10 } }),
+      api.get('/requests', { params: { status: 'rejected', pageSize: 10 } })
+    ])
     stats.value = {
-      total: requests.length,
-      pending: requests.filter((r: any) => r.status === 'pending').length,
-      approved: requests.filter((r: any) => r.status === 'approved' || r.status === 'signed' || r.status === 'printed' || r.status === 'collected').length,
-      rejected: requests.filter((r: any) => r.status === 'rejected').length
+      total: totalRes.data.pagination.total,
+      pending: pendingRes.data.pagination.total,
+      rejected: rejectedRes.data.pagination.total,
+      approved: totalRes.data.pagination.total - pendingRes.data.pagination.total - rejectedRes.data.pagination.total
     }
   } catch (error) {
     console.error('获取统计数据失败:', error)
