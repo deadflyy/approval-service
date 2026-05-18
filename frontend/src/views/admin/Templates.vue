@@ -1,27 +1,43 @@
 <template>
-  <div class="templates">
-    <el-card>
-      <template #header>
-        <div class="card-header">
-          <span>模板管理</span>
-          <el-button type="primary" @click="showUploadDialog = true">上传模板</el-button>
-        </div>
-      </template>
+  <div class="admin-page">
+    <!-- Page header -->
+    <div class="page-header">
+      <div class="header-left">
+        <h1 class="page-title">模板管理</h1>
+        <p class="page-subtitle">共 {{ templates.length }} 个模板</p>
+      </div>
+      <div class="header-right">
+        <el-button type="primary" @click="showUploadDialog = true">
+          <el-icon><Upload /></el-icon>
+          上传模板
+        </el-button>
+      </div>
+    </div>
 
+    <!-- Table -->
+    <div class="table-wrapper">
       <el-table :data="templates" style="width: 100%">
         <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="category" label="类别" />
-        <el-table-column prop="step" label="进度" />
-        <el-table-column prop="filename" label="文件名" />
-        <el-table-column prop="variables" label="变量">
+        <el-table-column prop="category" label="类别" width="100">
           <template #default="{ row }">
-            <el-tag v-for="v in parseVariables(row.variables)" :key="v" size="small" style="margin: 2px;">{{ v }}</el-tag>
+            <span class="category-tag">{{ row.category }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150">
+        <el-table-column prop="step" label="进度" width="100" />
+        <el-table-column prop="filename" label="文件名" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="variables" label="变量" min-width="240">
+          <template #default="{ row }">
+            <div class="variable-tags">
+              <el-tag v-for="v in parseVariables(row.variables)" :key="v" size="small" effect="plain" class="var-tag">
+                {{ v }}
+              </el-tag>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="150" fixed="right" align="center">
           <template #default="{ row }">
             <el-button link type="primary" @click="editTemplate(row)">编辑</el-button>
-            <el-popconfirm title="确定删除吗？" @confirm="deleteTemplate(row.id)">
+            <el-popconfirm title="确定删除此模板？" @confirm="deleteTemplate(row.id)">
               <template #reference>
                 <el-button link type="danger">删除</el-button>
               </template>
@@ -29,13 +45,13 @@
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
+    </div>
 
-    <!-- 上传模板对话框 -->
-    <el-dialog v-model="showUploadDialog" title="上传模板">
-      <el-form :model="uploadForm" label-width="80px">
+    <!-- Upload dialog -->
+    <el-dialog v-model="showUploadDialog" title="上传模板" width="480px">
+      <el-form :model="uploadForm" label-position="top">
         <el-form-item label="类别" required>
-          <el-select v-model="uploadForm.category">
+          <el-select v-model="uploadForm.category" placeholder="请选择类别" style="width: 100%">
             <el-option v-for="cat in categories" :key="cat" :label="cat" :value="cat" />
           </el-select>
         </el-form-item>
@@ -43,8 +59,14 @@
           <el-input v-model="uploadForm.step" placeholder="如: 成立-1, 换届-2" />
         </el-form-item>
         <el-form-item label="模板文件" required>
-          <el-upload :auto-upload="false" :on-change="onFileChange" accept=".docx">
-            <el-button>选择文件</el-button>
+          <el-upload
+            :auto-upload="false"
+            :on-change="onFileChange"
+            accept=".docx"
+            drag
+          >
+            <el-icon class="el-icon--upload"><Upload /></el-icon>
+            <div class="el-upload__text">拖拽文件到此处或 <em>点击上传</em></div>
             <template #tip>
               <div class="el-upload__tip">只能上传 .docx 文件</div>
             </template>
@@ -57,11 +79,11 @@
       </template>
     </el-dialog>
 
-    <!-- 编辑模板对话框 -->
-    <el-dialog v-model="showEditDialog" title="编辑模板">
-      <el-form :model="editForm" label-width="80px">
+    <!-- Edit dialog -->
+    <el-dialog v-model="showEditDialog" title="编辑模板" width="480px">
+      <el-form :model="editForm" label-position="top">
         <el-form-item label="类别" required>
-          <el-select v-model="editForm.category">
+          <el-select v-model="editForm.category" placeholder="请选择类别" style="width: 100%">
             <el-option v-for="cat in categories" :key="cat" :label="cat" :value="cat" />
           </el-select>
         </el-form-item>
@@ -190,13 +212,67 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.templates {
-  padding: 20px;
+.admin-page {
+  padding: 28px 32px;
+  max-width: 1200px;
 }
 
-.card-header {
+.page-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-end;
+  margin-bottom: 24px;
+}
+
+.page-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.page-subtitle {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.table-wrapper {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+}
+
+.category-tag {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--primary-600);
+  background: var(--primary-50);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.variable-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.var-tag {
+  font-size: 11px;
+}
+
+@media (max-width: 1024px) {
+  .admin-page {
+    padding: 20px 16px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
 }
 </style>

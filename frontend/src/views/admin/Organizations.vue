@@ -1,31 +1,41 @@
 <template>
-  <div class="organizations">
-    <el-card>
-      <template #header>
-        <div class="card-header">
-          <span>组织管理</span>
-          <el-button type="primary" @click="showDialog = true">新增组织</el-button>
-        </div>
-      </template>
+  <div class="admin-page">
+    <!-- Page header -->
+    <div class="page-header">
+      <div class="header-left">
+        <h1 class="page-title">组织管理</h1>
+        <p class="page-subtitle">共 {{ organizations.length }} 个组织</p>
+      </div>
+      <div class="header-right">
+        <el-button type="primary" @click="showDialog = true">
+          <el-icon><Plus /></el-icon>
+          新增组织
+        </el-button>
+      </div>
+    </div>
 
+    <!-- Table -->
+    <div class="table-wrapper">
       <el-table :data="organizations" style="width: 100%">
         <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="name" label="组织名称" />
-        <el-table-column prop="level" label="层级">
+        <el-table-column prop="name" label="组织名称" min-width="240" show-overflow-tooltip />
+        <el-table-column prop="level" label="层级" width="100">
           <template #default="{ row }">
-            <el-tag>{{ levelLabel(row.level) }}</el-tag>
+            <el-tag :type="levelType(row.level)" size="small" effect="light">
+              {{ levelLabel(row.level) }}
+            </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="parent_id" label="上级组织">
+        <el-table-column prop="parent_id" label="上级组织" width="200">
           <template #default="{ row }">
             {{ parentName(row.parent_id) }}
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" />
-        <el-table-column label="操作" width="150">
+        <el-table-column prop="created_at" label="创建时间" width="160" />
+        <el-table-column label="操作" width="150" fixed="right" align="center">
           <template #default="{ row }">
             <el-button link type="primary" @click="editOrg(row)">编辑</el-button>
-            <el-popconfirm title="确定删除吗？" @confirm="deleteOrg(row.id)">
+            <el-popconfirm title="确定删除此组织？" @confirm="deleteOrg(row.id)">
               <template #reference>
                 <el-button link type="danger">删除</el-button>
               </template>
@@ -33,22 +43,23 @@
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
+    </div>
 
-    <el-dialog v-model="showDialog" :title="editingOrg ? '编辑组织' : '新增组织'">
-      <el-form :model="form" label-width="80px">
+    <!-- Dialog -->
+    <el-dialog v-model="showDialog" :title="editingOrg ? '编辑组织' : '新增组织'" width="480px">
+      <el-form :model="form" label-position="top">
         <el-form-item label="名称" required>
-          <el-input v-model="form.name" />
+          <el-input v-model="form.name" placeholder="请输入组织名称" />
         </el-form-item>
         <el-form-item label="层级" required>
-          <el-select v-model="form.level">
+          <el-select v-model="form.level" placeholder="请选择层级" style="width: 100%">
             <el-option label="党委" value="party_committee" />
             <el-option label="总支" value="general_branch" />
             <el-option label="支部" value="branch" />
           </el-select>
         </el-form-item>
         <el-form-item label="上级组织">
-          <el-select v-model="form.parent_id" clearable placeholder="无">
+          <el-select v-model="form.parent_id" clearable placeholder="无" style="width: 100%">
             <el-option v-for="org in organizations" :key="org.id" :label="org.name" :value="org.id" />
           </el-select>
         </el-form-item>
@@ -76,6 +87,15 @@ const form = ref({
   level: '',
   parent_id: null as number | null
 })
+
+function levelType(level: string) {
+  const types: Record<string, string> = {
+    party_committee: 'danger',
+    general_branch: 'warning',
+    branch: ''
+  }
+  return types[level] || 'info'
+}
 
 function levelLabel(level: string) {
   const labels: Record<string, string> = {
@@ -152,13 +172,48 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.organizations {
-  padding: 20px;
+.admin-page {
+  padding: 28px 32px;
+  max-width: 1200px;
 }
 
-.card-header {
+.page-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-end;
+  margin-bottom: 24px;
+}
+
+.page-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.page-subtitle {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.table-wrapper {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+}
+
+@media (max-width: 1024px) {
+  .admin-page {
+    padding: 20px 16px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
 }
 </style>

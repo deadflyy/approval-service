@@ -1,28 +1,38 @@
 <template>
-  <div class="users">
-    <el-card>
-      <template #header>
-        <div class="card-header">
-          <span>用户管理</span>
-          <el-button type="primary" @click="showDialog = true">新增用户</el-button>
-        </div>
-      </template>
+  <div class="admin-page">
+    <!-- Page header -->
+    <div class="page-header">
+      <div class="header-left">
+        <h1 class="page-title">用户管理</h1>
+        <p class="page-subtitle">共 {{ users.length }} 个用户</p>
+      </div>
+      <div class="header-right">
+        <el-button type="primary" @click="showDialog = true">
+          <el-icon><Plus /></el-icon>
+          新增用户
+        </el-button>
+      </div>
+    </div>
 
+    <!-- Table -->
+    <div class="table-wrapper">
       <el-table :data="users" style="width: 100%">
         <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="username" label="用户名" />
-        <el-table-column prop="name" label="姓名" />
-        <el-table-column prop="role" label="角色">
+        <el-table-column prop="username" label="用户名" width="140" />
+        <el-table-column prop="name" label="姓名" width="120" />
+        <el-table-column prop="role" label="角色" width="100">
           <template #default="{ row }">
-            <el-tag>{{ roleLabel(row.role) }}</el-tag>
+            <el-tag :type="roleType(row.role)" size="small" effect="light">
+              {{ roleLabel(row.role) }}
+            </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" />
-        <el-table-column label="操作" width="200">
+        <el-table-column prop="created_at" label="创建时间" min-width="160" />
+        <el-table-column label="操作" width="200" fixed="right" align="center">
           <template #default="{ row }">
             <el-button link type="primary" @click="editUser(row)">编辑</el-button>
             <el-button link type="primary" @click="editAuth(row)">授权</el-button>
-            <el-popconfirm title="确定删除吗？" @confirm="deleteUser(row.id)">
+            <el-popconfirm title="确定删除此用户？" @confirm="deleteUser(row.id)">
               <template #reference>
                 <el-button link type="danger">删除</el-button>
               </template>
@@ -30,22 +40,22 @@
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
+    </div>
 
-    <!-- 新增/编辑用户对话框 -->
-    <el-dialog v-model="showDialog" :title="editingUser ? '编辑用户' : '新增用户'">
-      <el-form :model="form" label-width="80px">
+    <!-- User dialog -->
+    <el-dialog v-model="showDialog" :title="editingUser ? '编辑用户' : '新增用户'" width="480px">
+      <el-form :model="form" label-position="top">
         <el-form-item label="用户名" required>
-          <el-input v-model="form.username" :disabled="!!editingUser" />
+          <el-input v-model="form.username" :disabled="!!editingUser" placeholder="请输入用户名" />
         </el-form-item>
         <el-form-item label="姓名" required>
-          <el-input v-model="form.name" />
+          <el-input v-model="form.name" placeholder="请输入姓名" />
         </el-form-item>
         <el-form-item label="密码" :required="!editingUser">
-          <el-input v-model="form.password" type="password" :placeholder="editingUser ? '留空则不修改' : '请输入密码'" />
+          <el-input v-model="form.password" type="password" :placeholder="editingUser ? '留空则不修改' : '请输入密码'" show-password />
         </el-form-item>
         <el-form-item label="角色" required>
-          <el-select v-model="form.role">
+          <el-select v-model="form.role" placeholder="请选择角色" style="width: 100%">
             <el-option label="申请者" value="applicant" />
             <el-option label="批复者" value="approver" />
             <el-option label="联络员" value="liaison" />
@@ -59,8 +69,8 @@
       </template>
     </el-dialog>
 
-    <!-- 组织授权对话框 -->
-    <el-dialog v-model="showAuthDialog" title="组织授权">
+    <!-- Auth dialog -->
+    <el-dialog v-model="showAuthDialog" title="组织授权" width="600px">
       <el-transfer v-model="selectedOrgs" :data="allOrgs" :titles="['可选组织', '已授权组织']" />
       <template #footer>
         <el-button @click="showAuthDialog = false">取消</el-button>
@@ -90,6 +100,16 @@ const form = ref({
   password: '',
   role: ''
 })
+
+function roleType(role: string) {
+  const types: Record<string, string> = {
+    applicant: '',
+    approver: 'success',
+    liaison: 'warning',
+    admin: 'danger'
+  }
+  return types[role] || 'info'
+}
 
 function roleLabel(role: string) {
   const labels: Record<string, string> = {
@@ -197,13 +217,50 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.users {
-  padding: 20px;
+.admin-page {
+  padding: 28px 32px;
+  max-width: 1200px;
 }
 
-.card-header {
+/* Page header */
+.page-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-end;
+  margin-bottom: 24px;
+}
+
+.page-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.page-subtitle {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+/* Table */
+.table-wrapper {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+}
+
+@media (max-width: 1024px) {
+  .admin-page {
+    padding: 20px 16px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
 }
 </style>

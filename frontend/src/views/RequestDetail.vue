@@ -1,82 +1,241 @@
 <template>
-  <div class="request-detail">
-    <el-card>
-      <template #header>
-        <div class="card-header">
-          <span>请示详情</span>
-          <el-button @click="router.back()">返回</el-button>
-        </div>
-      </template>
-
-      <el-descriptions :column="2" border>
-        <el-descriptions-item label="ID">{{ request.id }}</el-descriptions-item>
-        <el-descriptions-item label="状态">
-          <el-tag :type="statusType(request.status)">{{ statusLabel(request.status) }}</el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="组织">{{ request.org_name }}</el-descriptions-item>
-        <el-descriptions-item label="提交人">{{ request.user_name }}</el-descriptions-item>
-        <el-descriptions-item label="类别">{{ request.category }}</el-descriptions-item>
-        <el-descriptions-item label="进度">{{ request.step }}</el-descriptions-item>
-        <el-descriptions-item label="标题" :span="2">{{ request.title }}</el-descriptions-item>
-        <el-descriptions-item label="请示页数">{{ request.page_count }}</el-descriptions-item>
-        <el-descriptions-item label="附件份数">{{ request.attachment_count }}</el-descriptions-item>
-        <el-descriptions-item label="涉及党组织" :span="2">{{ request.involved_orgs }}</el-descriptions-item>
-        <el-descriptions-item label="涉及党组织数">{{ request.involved_org_count }}</el-descriptions-item>
-        <el-descriptions-item label="党员大会时间">{{ request.meeting_time }}</el-descriptions-item>
-        <el-descriptions-item label="书记候选人">{{ request.secretary_candidate }}</el-descriptions-item>
-        <el-descriptions-item label="副书记候选人">{{ request.deputy_secretary_candidate }}</el-descriptions-item>
-        <el-descriptions-item label="委员候选人" :span="2">{{ request.committee_members }}</el-descriptions-item>
-        <el-descriptions-item label="批复号">{{ request.batch_number }}</el-descriptions-item>
-        <el-descriptions-item label="联络员">{{ request.liaison_name }}</el-descriptions-item>
-        <el-descriptions-item label="退回原因" :span="2" v-if="request.reject_reason">{{ request.reject_reason }}</el-descriptions-item>
-        <el-descriptions-item label="提交时间">{{ request.created_at }}</el-descriptions-item>
-        <el-descriptions-item label="更新时间">{{ request.updated_at }}</el-descriptions-item>
-      </el-descriptions>
-
-      <el-divider>组织统计</el-divider>
-
-      <el-descriptions :column="3" border>
-        <el-descriptions-item label="是否有高层担任班子">{{ request.has_senior_leader ? '是' : '否' }}</el-descriptions-item>
-        <el-descriptions-item label="涉及支部数">{{ request.branch_count }}</el-descriptions-item>
-        <el-descriptions-item label="涉及总支数">{{ request.general_branch_count }}</el-descriptions-item>
-        <el-descriptions-item label="涉及党委">{{ request.committee_count }}</el-descriptions-item>
-        <el-descriptions-item label="党委书记数">{{ request.party_committee_secretary_count }}</el-descriptions-item>
-        <el-descriptions-item label="党委副书记数">{{ request.party_committee_deputy_count }}</el-descriptions-item>
-        <el-descriptions-item label="党委委员数">{{ request.party_committee_member_count }}</el-descriptions-item>
-        <el-descriptions-item label="总支书记数">{{ request.general_branch_secretary_count }}</el-descriptions-item>
-        <el-descriptions-item label="总支副书记数">{{ request.general_branch_deputy_count }}</el-descriptions-item>
-        <el-descriptions-item label="总支委员数">{{ request.general_branch_member_count }}</el-descriptions-item>
-        <el-descriptions-item label="支部书记数">{{ request.branch_secretary_count }}</el-descriptions-item>
-        <el-descriptions-item label="支部副书记数">{{ request.branch_deputy_count }}</el-descriptions-item>
-        <el-descriptions-item label="支部委员数">{{ request.branch_member_count }}</el-descriptions-item>
-      </el-descriptions>
-
-      <div class="actions" style="margin-top: 20px;">
-        <!-- 批复者操作 -->
-        <template v-if="authStore.user?.role === 'approver' && (request.status === 'pending' || request.status === 'rejected')">
-          <el-button type="success" @click="approve" :loading="loading">审批通过</el-button>
-          <el-button type="danger" @click="showRejectDialog = true">退回修改</el-button>
-        </template>
-
-        <!-- 联络员操作 -->
-        <template v-if="authStore.user?.role === 'liaison' && request.liaison_id === authStore.user?.id">
-          <el-button v-if="request.status === 'approved'" type="primary" @click="updateStatus('signed')">标记已签批</el-button>
-          <el-button v-if="request.status === 'signed'" type="primary" @click="updateStatus('printed')">标记已打印</el-button>
-          <el-button v-if="request.status === 'printed'" type="primary" @click="updateStatus('collected')">标记已领取</el-button>
-        </template>
-
-        <!-- 管理员分配联络员 -->
-        <template v-if="authStore.user?.role === 'admin'">
-          <el-button type="warning" @click="showLiaisonDialog = true">分配联络员</el-button>
-        </template>
+  <div class="detail-page">
+    <!-- Page header -->
+    <div class="page-header">
+      <div class="header-left">
+        <el-button text @click="router.back()" class="back-btn">
+          <el-icon><ArrowLeft /></el-icon>
+          返回
+        </el-button>
+        <h1 class="page-title">请示详情</h1>
       </div>
-    </el-card>
+      <div class="header-right">
+        <el-tag :type="statusType(request.status)" size="large" effect="light">
+          {{ statusLabel(request.status) }}
+        </el-tag>
+      </div>
+    </div>
 
-    <!-- 退回修改对话框 -->
-    <el-dialog v-model="showRejectDialog" title="退回修改">
+    <!-- Main content -->
+    <div class="detail-grid">
+      <!-- Left: Main info -->
+      <div class="detail-main">
+        <div class="info-card">
+          <div class="card-header">
+            <h3>基本信息</h3>
+            <span class="request-id">#{{ request.id }}</span>
+          </div>
+          <div class="card-body">
+            <div class="info-row">
+              <span class="info-label">请示标题</span>
+              <span class="info-value title-value">{{ request.title }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">所属组织</span>
+              <span class="info-value">{{ request.org_name }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">提交人</span>
+              <span class="info-value">{{ request.user_name }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">请示类别</span>
+              <span class="info-value">
+                <span class="category-tag">{{ request.category }}</span>
+              </span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">流程进度</span>
+              <span class="info-value">{{ request.step }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">批复号</span>
+              <span class="info-value batch-number">{{ request.batch_number || '待分配' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <div class="card-header">
+            <h3>组织信息</h3>
+          </div>
+          <div class="card-body">
+            <div class="info-row">
+              <span class="info-label">涉及党组织</span>
+              <span class="info-value">{{ request.involved_orgs || '-' }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">涉及党组织数</span>
+              <span class="info-value">{{ request.involved_org_count || 0 }}</span>
+            </div>
+            <div class="info-row" v-if="request.meeting_time">
+              <span class="info-label">党员大会时间</span>
+              <span class="info-value">{{ request.meeting_time }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">书记候选人</span>
+              <span class="info-value">{{ request.secretary_candidate || '-' }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">副书记候选人</span>
+              <span class="info-value">{{ request.deputy_secretary_candidate || '-' }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">委员候选人</span>
+              <span class="info-value">{{ request.committee_members || '-' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-card" v-if="request.reject_reason">
+          <div class="card-header">
+            <h3>退回原因</h3>
+          </div>
+          <div class="card-body">
+            <div class="reject-reason">{{ request.reject_reason }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Stats and actions -->
+      <div class="detail-side">
+        <div class="info-card">
+          <div class="card-header">
+            <h3>组织统计</h3>
+          </div>
+          <div class="card-body stats-body">
+            <div class="stat-item">
+              <span class="stat-label">高层担任班子</span>
+              <span class="stat-value" :class="{ 'stat-yes': request.has_senior_leader }">
+                {{ request.has_senior_leader ? '是' : '否' }}
+              </span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-group-title">涉及组织</div>
+            <div class="stat-row">
+              <div class="stat-item">
+                <span class="stat-label">支部</span>
+                <span class="stat-value">{{ request.branch_count || 0 }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">总支</span>
+                <span class="stat-value">{{ request.general_branch_count || 0 }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">党委</span>
+                <span class="stat-value">{{ request.committee_count || 0 }}</span>
+              </div>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-group-title">党委</div>
+            <div class="stat-row">
+              <div class="stat-item">
+                <span class="stat-label">书记</span>
+                <span class="stat-value">{{ request.party_committee_secretary_count || 0 }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">副书记</span>
+                <span class="stat-value">{{ request.party_committee_deputy_count || 0 }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">委员</span>
+                <span class="stat-value">{{ request.party_committee_member_count || 0 }}</span>
+              </div>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-group-title">总支</div>
+            <div class="stat-row">
+              <div class="stat-item">
+                <span class="stat-label">书记</span>
+                <span class="stat-value">{{ request.general_branch_secretary_count || 0 }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">副书记</span>
+                <span class="stat-value">{{ request.general_branch_deputy_count || 0 }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">委员</span>
+                <span class="stat-value">{{ request.general_branch_member_count || 0 }}</span>
+              </div>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-group-title">支部</div>
+            <div class="stat-row">
+              <div class="stat-item">
+                <span class="stat-label">书记</span>
+                <span class="stat-value">{{ request.branch_secretary_count || 0 }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">副书记</span>
+                <span class="stat-value">{{ request.branch_deputy_count || 0 }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">委员</span>
+                <span class="stat-value">{{ request.branch_member_count || 0 }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="info-card actions-card">
+          <div class="card-header">
+            <h3>操作</h3>
+          </div>
+          <div class="card-body">
+            <template v-if="authStore.user?.role === 'approver' && (request.status === 'pending' || request.status === 'rejected')">
+              <el-button type="primary" @click="approve" :loading="loading" class="action-btn">
+                <el-icon><Check /></el-icon>
+                审批通过
+              </el-button>
+              <el-button type="danger" @click="showRejectDialog = true" class="action-btn" plain>
+                <el-icon><Close /></el-icon>
+                退回修改
+              </el-button>
+            </template>
+
+            <template v-if="authStore.user?.role === 'liaison' && request.liaison_id === authStore.user?.id">
+              <el-button v-if="request.status === 'approved'" type="primary" @click="updateStatus('signed')" :loading="loading" class="action-btn">
+                <el-icon><Edit /></el-icon>
+                标记已签批
+              </el-button>
+              <el-button v-if="request.status === 'signed'" type="primary" @click="updateStatus('printed')" :loading="loading" class="action-btn">
+                <el-icon><Printer /></el-icon>
+                标记已打印
+              </el-button>
+              <el-button v-if="request.status === 'printed'" type="success" @click="updateStatus('collected')" :loading="loading" class="action-btn">
+                <el-icon><Finished /></el-icon>
+                标记已领取
+              </el-button>
+            </template>
+
+            <template v-if="authStore.user?.role === 'admin'">
+              <el-button type="warning" @click="showLiaisonDialog = true" class="action-btn" plain>
+                <el-icon><Connection /></el-icon>
+                分配联络员
+              </el-button>
+            </template>
+
+            <div class="action-info">
+              <div class="info-row">
+                <span class="info-label">联络员</span>
+                <span class="info-value">{{ request.liaison_name || '未分配' }}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">提交时间</span>
+                <span class="info-value">{{ request.created_at }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dialogs -->
+    <el-dialog v-model="showRejectDialog" title="退回修改" width="420px">
       <el-form>
         <el-form-item label="退回原因">
-          <el-input v-model="rejectReason" type="textarea" :rows="3" />
+          <el-input v-model="rejectReason" type="textarea" :rows="4" placeholder="请输入退回原因" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -85,11 +244,10 @@
       </template>
     </el-dialog>
 
-    <!-- 分配联络员对话框 -->
-    <el-dialog v-model="showLiaisonDialog" title="分配联络员">
+    <el-dialog v-model="showLiaisonDialog" title="分配联络员" width="420px">
       <el-form>
         <el-form-item label="选择联络员">
-          <el-select v-model="selectedLiaison" placeholder="请选择联络员">
+          <el-select v-model="selectedLiaison" placeholder="请选择联络员" style="width: 100%">
             <el-option v-for="user in liaisonUsers" :key="user.id" :label="user.name" :value="user.id" />
           </el-select>
         </el-form-item>
@@ -129,7 +287,7 @@ function statusType(status: string) {
     printed: 'success',
     collected: 'success'
   }
-  return types[status] || ''
+  return types[status] || 'info'
 }
 
 function statusLabel(status: string) {
@@ -210,7 +368,6 @@ async function assignLiaison() {
 
 onMounted(async () => {
   loadRequest()
-
   if (authStore.user?.role === 'admin') {
     try {
       const response = await api.get('/users')
@@ -223,18 +380,218 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.request-detail {
-  padding: 20px;
+.detail-page {
+  padding: 28px 32px;
+  max-width: 1200px;
+}
+
+/* Page header */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.back-btn {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.page-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+/* Grid layout */
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 20px;
+  align-items: start;
+}
+
+/* Cards */
+.info-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  margin-bottom: 16px;
+  overflow: hidden;
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-light);
 }
 
-.actions {
+.card-header h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.request-id {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.card-body {
+  padding: 16px 20px;
+}
+
+/* Info rows */
+.info-row {
   display: flex;
+  align-items: flex-start;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--gray-50);
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-label {
+  width: 100px;
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 450;
+}
+
+.info-value {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.title-value {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.batch-number {
+  font-family: var(--font-mono);
+  color: var(--primary-600);
+  font-weight: 500;
+}
+
+.category-tag {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--primary-600);
+  background: var(--primary-50);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* Reject reason */
+.reject-reason {
+  font-size: 14px;
+  color: var(--danger);
+  line-height: 1.6;
+  padding: 12px;
+  background: var(--danger-light);
+  border-radius: var(--radius-md);
+}
+
+/* Stats */
+.stats-body {
+  padding: 12px 16px;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.stat-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.stat-yes {
+  color: var(--primary-600);
+}
+
+.stat-divider {
+  height: 1px;
+  background: var(--border-light);
+  margin: 8px 0;
+}
+
+.stat-group-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.stat-row .stat-item {
+  flex-direction: column;
+  align-items: center;
+  padding: 8px;
+  background: var(--gray-50);
+  border-radius: var(--radius-sm);
+}
+
+/* Actions card */
+.actions-card .card-body {
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+}
+
+.action-btn {
+  width: 100%;
+}
+
+.action-info {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-light);
+}
+
+.action-info .info-row {
+  padding: 4px 0;
+}
+
+@media (max-width: 1024px) {
+  .detail-page {
+    padding: 20px 16px;
+  }
+
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

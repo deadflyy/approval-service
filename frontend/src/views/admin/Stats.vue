@@ -1,114 +1,136 @@
 <template>
-  <div class="stats">
-    <el-card>
-      <template #header>
-        <span>统计汇总</span>
-      </template>
+  <div class="admin-page">
+    <!-- Page header -->
+    <div class="page-header">
+      <div class="header-left">
+        <h1 class="page-title">统计汇总</h1>
+        <p class="page-subtitle">组织统计数据</p>
+      </div>
+      <div class="header-right">
+        <el-input
+          v-model="searchText"
+          placeholder="搜索..."
+          prefix-icon="Search"
+          clearable
+          class="search-input"
+        />
+      </div>
+    </div>
 
-      <el-table :data="requests" style="width: 100%">
-        <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="org_name" label="组织" width="200" show-overflow-tooltip />
-        <el-table-column prop="title" label="标题" show-overflow-tooltip />
-        <el-table-column prop="category" label="类别" width="80" />
-        <el-table-column prop="has_senior_leader" label="高层担任" width="80">
-          <template #default="{ row }">{{ row.has_senior_leader ? '是' : '否' }}</template>
-        </el-table-column>
-        <el-table-column prop="branch_count" label="支部数" width="80" />
-        <el-table-column prop="general_branch_count" label="总支数" width="80" />
-        <el-table-column prop="committee_count" label="党委数" width="80" />
-        <el-table-column prop="party_committee_secretary_count" label="党委书记" width="80" />
-        <el-table-column prop="party_committee_deputy_count" label="党委副书" width="80" />
-        <el-table-column prop="party_committee_member_count" label="党委委员" width="80" />
-        <el-table-column prop="general_branch_secretary_count" label="总支书记" width="80" />
-        <el-table-column prop="general_branch_deputy_count" label="总支副书" width="80" />
-        <el-table-column prop="general_branch_member_count" label="总支委员" width="80" />
-        <el-table-column prop="branch_secretary_count" label="支部书记" width="80" />
-        <el-table-column prop="branch_deputy_count" label="支部副书" width="80" />
-        <el-table-column prop="branch_member_count" label="支部委员" width="80" />
-        <el-table-column label="操作" width="80" fixed="right">
+    <!-- Table -->
+    <div class="table-wrapper">
+      <el-table :data="filteredRequests" style="width: 100%" max-height="calc(100vh - 240px)">
+        <el-table-column prop="id" label="ID" width="50" fixed />
+        <el-table-column prop="org_name" label="组织" width="180" fixed show-overflow-tooltip />
+        <el-table-column prop="title" label="标题" width="200" show-overflow-tooltip />
+        <el-table-column prop="category" label="类别" width="70">
           <template #default="{ row }">
-            <el-button link type="primary" @click="editStats(row)">编辑</el-button>
+            <span class="category-tag">{{ row.category }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="高层担任" width="70" align="center">
+          <template #default="{ row }">
+            <el-icon v-if="row.has_senior_leader" class="stat-check"><Check /></el-icon>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="涉及组织" align="center">
+          <el-table-column prop="branch_count" label="支部" width="55" align="center" />
+          <el-table-column prop="general_branch_count" label="总支" width="55" align="center" />
+          <el-table-column prop="committee_count" label="党委" width="55" align="center" />
+        </el-table-column>
+        <el-table-column label="党委" align="center">
+          <el-table-column prop="party_committee_secretary_count" label="书记" width="55" align="center" />
+          <el-table-column prop="party_committee_deputy_count" label="副书" width="55" align="center" />
+          <el-table-column prop="party_committee_member_count" label="委员" width="55" align="center" />
+        </el-table-column>
+        <el-table-column label="总支" align="center">
+          <el-table-column prop="general_branch_secretary_count" label="书记" width="55" align="center" />
+          <el-table-column prop="general_branch_deputy_count" label="副书" width="55" align="center" />
+          <el-table-column prop="general_branch_member_count" label="委员" width="55" align="center" />
+        </el-table-column>
+        <el-table-column label="支部" align="center">
+          <el-table-column prop="branch_secretary_count" label="书记" width="55" align="center" />
+          <el-table-column prop="branch_deputy_count" label="副书" width="55" align="center" />
+          <el-table-column prop="branch_member_count" label="委员" width="55" align="center" />
+        </el-table-column>
+        <el-table-column label="操作" width="70" fixed="right" align="center">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="editStats(row)" size="small">编辑</el-button>
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
+    </div>
 
-    <el-dialog v-model="showDialog" title="编辑统计数据">
-      <el-form :model="form" label-width="120px">
+    <!-- Edit dialog -->
+    <el-dialog v-model="showDialog" title="编辑统计数据" width="600px">
+      <el-form :model="form" label-position="top">
         <el-form-item label="是否有高层担任班子">
-          <el-select v-model="form.has_senior_leader">
+          <el-select v-model="form.has_senior_leader" style="width: 100%">
             <el-option label="否" :value="0" />
             <el-option label="是" :value="1" />
           </el-select>
         </el-form-item>
-        <el-row :gutter="20">
-          <el-col :span="8">
-            <el-form-item label="涉及支部数">
-              <el-input-number v-model="form.branch_count" :min="0" />
+
+        <div class="stats-group">
+          <h4 class="group-title">涉及组织</h4>
+          <div class="stats-grid">
+            <el-form-item label="支部数">
+              <el-input-number v-model="form.branch_count" :min="0" style="width: 100%" />
             </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="涉及总支数">
-              <el-input-number v-model="form.general_branch_count" :min="0" />
+            <el-form-item label="总支数">
+              <el-input-number v-model="form.general_branch_count" :min="0" style="width: 100%" />
             </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="涉及党委">
-              <el-input-number v-model="form.committee_count" :min="0" />
+            <el-form-item label="党委">
+              <el-input-number v-model="form.committee_count" :min="0" style="width: 100%" />
             </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="8">
-            <el-form-item label="党委书记数">
-              <el-input-number v-model="form.party_committee_secretary_count" :min="0" />
+          </div>
+        </div>
+
+        <div class="stats-group">
+          <h4 class="group-title">党委</h4>
+          <div class="stats-grid">
+            <el-form-item label="书记数">
+              <el-input-number v-model="form.party_committee_secretary_count" :min="0" style="width: 100%" />
             </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="党委副书记数">
-              <el-input-number v-model="form.party_committee_deputy_count" :min="0" />
+            <el-form-item label="副书记数">
+              <el-input-number v-model="form.party_committee_deputy_count" :min="0" style="width: 100%" />
             </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="党委委员数">
-              <el-input-number v-model="form.party_committee_member_count" :min="0" />
+            <el-form-item label="委员数">
+              <el-input-number v-model="form.party_committee_member_count" :min="0" style="width: 100%" />
             </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="8">
-            <el-form-item label="总支书记数">
-              <el-input-number v-model="form.general_branch_secretary_count" :min="0" />
+          </div>
+        </div>
+
+        <div class="stats-group">
+          <h4 class="group-title">总支</h4>
+          <div class="stats-grid">
+            <el-form-item label="书记数">
+              <el-input-number v-model="form.general_branch_secretary_count" :min="0" style="width: 100%" />
             </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="总支副书记数">
-              <el-input-number v-model="form.general_branch_deputy_count" :min="0" />
+            <el-form-item label="副书记数">
+              <el-input-number v-model="form.general_branch_deputy_count" :min="0" style="width: 100%" />
             </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="总支委员数">
-              <el-input-number v-model="form.general_branch_member_count" :min="0" />
+            <el-form-item label="委员数">
+              <el-input-number v-model="form.general_branch_member_count" :min="0" style="width: 100%" />
             </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row :gutter="20">
-          <el-col :span="8">
-            <el-form-item label="支部书记数">
-              <el-input-number v-model="form.branch_secretary_count" :min="0" />
+          </div>
+        </div>
+
+        <div class="stats-group">
+          <h4 class="group-title">支部</h4>
+          <div class="stats-grid">
+            <el-form-item label="书记数">
+              <el-input-number v-model="form.branch_secretary_count" :min="0" style="width: 100%" />
             </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="支部副书记数">
-              <el-input-number v-model="form.branch_deputy_count" :min="0" />
+            <el-form-item label="副书记数">
+              <el-input-number v-model="form.branch_deputy_count" :min="0" style="width: 100%" />
             </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="支部委员数">
-              <el-input-number v-model="form.branch_member_count" :min="0" />
+            <el-form-item label="委员数">
+              <el-input-number v-model="form.branch_member_count" :min="0" style="width: 100%" />
             </el-form-item>
-          </el-col>
-        </el-row>
+          </div>
+        </div>
       </el-form>
       <template #footer>
         <el-button @click="showDialog = false">取消</el-button>
@@ -119,7 +141,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import api from '../../api'
 
@@ -127,6 +149,16 @@ const loading = ref(false)
 const requests = ref([])
 const showDialog = ref(false)
 const editingId = ref<number | null>(null)
+const searchText = ref('')
+
+const filteredRequests = computed(() => {
+  if (!searchText.value) return requests.value
+  const search = searchText.value.toLowerCase()
+  return requests.value.filter((r: any) =>
+    r.org_name?.toLowerCase().includes(search) ||
+    r.title?.toLowerCase().includes(search)
+  )
+})
 
 const form = ref({
   has_senior_leader: 0,
@@ -193,7 +225,89 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.stats {
-  padding: 20px;
+.admin-page {
+  padding: 28px 32px;
+  max-width: 1400px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 24px;
+}
+
+.page-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.page-subtitle {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.search-input {
+  width: 240px;
+}
+
+.table-wrapper {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+}
+
+.category-tag {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--primary-600);
+  background: var(--primary-50);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.stat-check {
+  color: var(--success);
+  font-size: 16px;
+}
+
+.stats-group {
+  margin-bottom: 20px;
+}
+
+.group-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  padding-left: 12px;
+  border-left: 3px solid var(--primary-400);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 1024px) {
+  .admin-page {
+    padding: 20px 16px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .search-input {
+    width: 100%;
+  }
 }
 </style>
