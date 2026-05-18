@@ -172,10 +172,10 @@ async function editAuth(user: any) {
   editingUserId.value = user.id
   try {
     const [orgsRes, userOrgsRes] = await Promise.all([
-      api.get('/organizations'),
+      api.get('/organizations', { params: { pageSize: 100 } }),
       api.get(`/users/${user.id}/organizations`)
     ])
-    allOrgs.value = orgsRes.data.map((o: any) => ({
+    allOrgs.value = orgsRes.data.data.map((o: any) => ({
       key: o.id,
       label: o.name
     }))
