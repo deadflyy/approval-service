@@ -126,5 +126,20 @@ export function initDatabase(): Database.Database {
     `).run('admin', passwordHash, '系统管理员', 'admin');
   }
 
+  const existingOrg = db.prepare('SELECT * FROM organizations LIMIT 1').get();
+  if (!existingOrg) {
+    const insertOrg = db.prepare('INSERT INTO organizations (name, parent_id, level) VALUES (?, ?, ?)');
+    
+    const partyCommitteeId = insertOrg.run('张江园区综合党委', null, 'party_committee').lastInsertRowid;
+    const generalBranch1Id = insertOrg.run('第一党总支', partyCommitteeId, 'general_branch').lastInsertRowid;
+    const generalBranch2Id = insertOrg.run('第二党总支', partyCommitteeId, 'general_branch').lastInsertRowid;
+    
+    insertOrg.run('第一党支部', generalBranch1Id, 'branch');
+    insertOrg.run('第二党支部', generalBranch1Id, 'branch');
+    insertOrg.run('第三党支部', generalBranch1Id, 'branch');
+    insertOrg.run('第四党支部', generalBranch2Id, 'branch');
+    insertOrg.run('第五党支部', generalBranch2Id, 'branch');
+  }
+
   return db;
 }
