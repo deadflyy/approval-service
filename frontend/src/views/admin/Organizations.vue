@@ -102,8 +102,13 @@ import api from '../../api'
 import Pagination from '../../components/Pagination.vue'
 
 const route = useRoute()
+interface Organization {
+  id: number
+  name: string
+  parent_id?: number
+}
 const loading = ref(false)
-const organizations = ref([])
+const organizations = ref<Organization[]>([])
 const searchText = ref('')
 const levelFilter = ref('')
 const showDialog = ref(false)

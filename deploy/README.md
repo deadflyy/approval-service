@@ -1,27 +1,23 @@
-# 党组织建设批复系统 - Ubuntu 24.04 部署手册
-
-## 项目简介
-
-本系统是一个基于 Node.js 的党组织建设批复管理系统，包含前后端分离架构：
-- 后端：Express + TypeScript + SQLite
-- 前端：Vue3 + Vite + Element Plus
+# 党组织建设批复系统 - 部署手册
 
 ## 系统要求
 
-- 操作系统：Ubuntu 24.04 LTS
-- Node.js：18.x 或更高版本
-- npm：8.x 或更高版本
-- 推荐服务器配置：2核4G
+| 项目 | 要求 |
+|------|------|
+| 操作系统 | Ubuntu 20.04+ / CentOS 7+ / RHEL 8+ |
+| Node.js | 18.x+ (推荐 LTS) |
+| 编译工具 | make, gcc/g++, python3 (node-gyp 编译 better-sqlite3) |
+| 内存 | >= 2GB |
+| 磁盘 | >= 1GB |
 
-## 快速开始
+> better-sqlite3 需要通过 node-gyp 编译原生模块，服务器需安装 make/gcc/g++/python3（部署脚本会自动安装）。
 
-### 1. 上传项目文件
+## 快速部署
 
-将整个项目上传到服务器，推荐目录：`/opt/approval-service`
+### 1. 上传项目
 
 ```bash
-# 在本地执行（假设服务器IP为1.2.3.4）
-scp -r approval-service root@1.2.3.4:/opt/
+scp -r approval-service root@服务器IP:/opt/
 ```
 
 ### 2. 一键部署
@@ -32,64 +28,74 @@ chmod +x *.sh
 ./deploy.sh
 ```
 
-### 3. 服务管理
+部署过程自动完成：环境检测 -> 依赖安装 -> node-gyp 编译 better-sqlite3 -> 数据库初始化 -> 服务启动。
+
+> 如果检测到已有服务在运行，脚本会提示确认是否重新部署。
+
+## 服务管理
 
 ```bash
-# 后端服务管理
-./backend.sh start
-./backend.sh stop
-./backend.sh restart
-./backend.sh status
+cd /opt/approval-service/deploy
 
-# 前端服务管理
-./frontend.sh start
-./frontend.sh stop
-./frontend.sh restart
-./frontend.sh status
+# 管理所有服务
+./service.sh start|stop|restart|status|logs
+
+# 单独管理后端
+./backend.sh start|stop|restart|status|logs
+
+# 单独管理前端
+./frontend.sh start|stop|restart|status|logs|build
 ```
 
-## 默认账号
+## 脚本说明
 
-- 用户名：`admin`
-- 密码：`admin123`
-- 角色：系统管理员
+| 脚本 | 用途 |
+|------|------|
+| `deploy.sh` | 一键部署（首次使用） |
+| `setup-env.sh` | 环境检测与依赖安装 |
+| `init-db.sh` | 数据库初始化（可重复运行，自动备份） |
+| `service.sh` | 综合服务管理（启停所有服务） |
+| `backend.sh` | 后端服务管理 |
+| `frontend.sh` | 前端服务管理 |
+| `fix-sqlite3.sh` | 修复 better-sqlite3（安装编译工具 + node-gyp 编译） |
+| `quick-start.sh` | 显示可用命令 |
+| `common.sh` | 公共函数库（被其他脚本引用） |
+| `pm2.config.js` | PM2 进程管理配置 |
+| `import-templates.js` | Word 模板导入工具 |
 
-## 端口说明
+## 访问地址
 
-- 后端服务：`http://localhost:3000`
-- 前端服务：`http://localhost:5174`
+| 服务 | 地址 |
+|------|------|
+| 前端 | http://服务器IP:4173 |
+| 后端 API | http://服务器IP:3000 |
 
-## 详细部署步骤
+## 默认管理员
 
-### 步骤1：环境准备
+> **安全提醒：部署后请立即修改默认密码！**
 
-系统会自动检测并安装以下组件：
-- Node.js 18.x
-- npm
-- git
-- build-essential
-- pm2（用于进程管理）
+| 字段 | 值 |
+|------|-----|
+| 用户名 | `admin` |
+| 密码 | `admin123` |
+| 角色 | 系统管理员 |
 
-### 步骤2：后端部署
+## 目录结构
 
-- 安装后端依赖
-- 初始化数据库（创建默认管理员）
-- 导入模板文件
-- 使用 pm2 启动后端服务
+```
+/opt/approval-service/
+├── backend/              # 后端代码
+│   ├── src/              # 源码
+│   └── data/             # SQLite 数据库 + 模板文件
+├── frontend/             # 前端代码
+├── templates/            # Word 模板源文件
+├── logs/                 # PM2 日志
+└── deploy/               # 部署脚本
+```
 
-### 步骤3：前端部署
+## Nginx 反向代理（可选）
 
-- 安装前端依赖
-- 构建前端产物
-- 使用 pm2 启动前端预览服务
-
-### 步骤4：访问系统
-
-在浏览器访问 `http://服务器IP:5174` 或配置 Nginx 反向代理后访问。
-
-## Nginx 反向代理配置（可选）
-
-创建 `/etc/nginx/sites-available/approval-service`：
+如需通过 80/443 端口访问，配置 Nginx：
 
 ```nginx
 server {
@@ -97,14 +103,13 @@ server {
     server_name your-domain.com;
 
     location / {
-        proxy_pass http://localhost:5174;
+        proxy_pass http://localhost:4173;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_cache_bypass $http_upgrade;
     }
 
     location /api {
@@ -117,68 +122,54 @@ server {
 }
 ```
 
-启用配置：
-```bash
-ln -s /etc/nginx/sites-available/approval-service /etc/nginx/sites-enabled/
-nginx -t
-systemctl reload nginx
-```
-
-## 目录结构
-
-```
-/opt/approval-service/
-├── backend/              # 后端代码
-│   ├── src/
-│   ├── data/            # SQLite数据库
-│   └── package.json
-├── frontend/            # 前端代码
-│   ├── src/
-│   ├── dist/           # 构建产物
-│   └── package.json
-├── templates/           # 模板文件
-└── deploy/             # 部署脚本
-```
-
 ## 数据备份
 
-### 备份数据库
+数据库文件位于 `backend/data/approval.db`，备份方法：
+
 ```bash
-cp /opt/approval-service/backend/data/approval.db /opt/approval-service/backup/approval.db.$(date +%Y%m%d)
+# 手动备份
+cp /opt/approval-service/backend/data/approval.db /opt/approval-service/backend/data/approval.db.$(date +%Y%m%d).backup
+
+# 使用 init-db.sh 会自动备份已有数据库
+./init-db.sh
 ```
 
-### 备份模板
+## 故障排查
+
+### better-sqlite3 不可用
+
 ```bash
-cp -r /opt/approval-service/templates /opt/approval-service/backup/templates.$(date +%Y%m%d)
+# 自动安装编译工具并重新编译
+cd /opt/approval-service/deploy
+./fix-sqlite3.sh
 ```
 
-## 常见问题
+手动编译：
 
-### 服务无法启动
-检查 pm2 日志：
+```bash
+cd /opt/approval-service/backend
+npx --yes node-gyp rebuild --directory=node_modules/better-sqlite3
+```
+
+### 端口被占用
+
+```bash
+lsof -i :3000
+lsof -i :4173
+./service.sh stop && ./service.sh start
+```
+
+### 查看日志
+
 ```bash
 pm2 logs approval-backend
 pm2 logs approval-frontend
 ```
 
-### 端口被占用
-修改端口配置或停止占用进程：
+### 重置数据库
+
 ```bash
-lsof -ti:3000 | xargs kill -9
-lsof -ti:5174 | xargs kill -9
+cp backend/data/approval.db backend/data/approval.db.bak
+rm backend/data/approval.db
+./init-db.sh
 ```
-
-### 权限问题
-确保项目目录权限正确：
-```bash
-chown -R www-data:www-data /opt/approval-service
-chmod -R 755 /opt/approval-service
-```
-
-## 技术支持
-
-如有问题，请检查：
-1. Node.js 版本
-2. npm 依赖是否完整安装
-3. pm2 进程状态
-4. 系统防火墙配置

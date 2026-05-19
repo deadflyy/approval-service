@@ -276,7 +276,11 @@ const showRejectDialog = ref(false)
 const showLiaisonDialog = ref(false)
 const rejectReason = ref('')
 const selectedLiaison = ref(null)
-const liaisonUsers = ref([])
+interface User {
+  id: number
+  name: string
+}
+const liaisonUsers = ref<User[]>([])
 
 function statusType(status: string) {
   const types: Record<string, string> = {

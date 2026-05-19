@@ -2,169 +2,142 @@
 
 set -e
 
-echo "=========================================="
-echo "    党组织建设批复系统 - 环境检测与安装"
-echo "=========================================="
-echo ""
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+source "$SCRIPT_DIR/common.sh"
 
-# 颜色定义
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+header "环境检测与安装"
 
-# 检测函数
 check_command() {
     if command -v "$1" &> /dev/null; then
-        echo -e "${GREEN}✓ $1 已安装${NC}"
+        info "$1 已安装 ($("$1" --version 2>/dev/null | head -1))"
         return 0
     else
-        echo -e "${YELLOW}⚠ $1 未安装${NC}"
+        warn "$1 未安装"
         return 1
     fi
 }
 
-# 检查操作系统
-echo "[1/6] 检查操作系统..."
+detect_package_manager() {
+    if command -v apt-get &> /dev/null; then
+        PKG_MANAGER="apt"
+        PKG_INSTALL="apt-get install -y"
+    elif command -v yum &> /dev/null; then
+        PKG_MANAGER="yum"
+        PKG_INSTALL="yum install -y"
+    elif command -v dnf &> /dev/null; then
+        PKG_MANAGER="dnf"
+        PKG_INSTALL="dnf install -y"
+    else
+        PKG_MANAGER=""
+        warn "未检测到支持的包管理器 (apt/yum/dnf)"
+    fi
+}
+
+# ─── 检测操作系统 ───
+step "1/5" "检查操作系统"
 if [ -f /etc/os-release ]; then
     . /etc/os-release
-    echo -e "${GREEN}✓ 操作系统: $PRETTY_NAME${NC}"
+    info "操作系统: $PRETTY_NAME"
 else
-    echo -e "${RED}✗ 无法检测操作系统${NC}"
-    exit 1
+    warn "无法检测操作系统信息"
 fi
 
-# 检查 Node.js
-echo ""
-echo "[2/6] 检查 Node.js..."
+detect_package_manager
+
+# ─── 检查 Node.js ───
+step "2/5" "检查 Node.js"
+NEED_INSTALL_NODE=false
 if check_command node; then
-    NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
-    echo "  版本: $(node --version)"
-    if [ "$NODE_VERSION" -lt 18 ]; then
-        echo -e "${YELLOW}⚠ Node.js 版本过低，需要升级${NC}"
+    NODE_MAJOR=$(node --version | sed 's/v//' | cut -d'.' -f1)
+    if [ "$NODE_MAJOR" -lt 18 ] 2>/dev/null; then
+        warn "Node.js 版本过低 (需要 >= 18.x)，当前: v$NODE_MAJOR"
         NEED_INSTALL_NODE=true
+    else
+        success "Node.js 版本兼容"
     fi
 else
     NEED_INSTALL_NODE=true
 fi
 
-# 检查 npm
-echo ""
-echo "[3/6] 检查 npm..."
-check_command npm
-if [ $? -eq 0 ]; then
-    echo "  版本: $(npm --version)"
+check_command npm || NEED_INSTALL_NODE=true
+
+# ─── 检查编译工具 (node-gyp 编译 better-sqlite3 依赖) ───
+step "3/5" "检查编译工具"
+NEED_INSTALL_BUILD=false
+command -v make &> /dev/null    && info "make 已安装"    || { warn "make 未安装";    NEED_INSTALL_BUILD=true; }
+command -v g++ &> /dev/null     && info "g++ 已安装"     || { warn "g++ 未安装";     NEED_INSTALL_BUILD=true; }
+command -v python3 &> /dev/null && info "python3 已安装" || { warn "python3 未安装"; NEED_INSTALL_BUILD=true; }
+
+if [ "$PKG_MANAGER" = "apt" ]; then
+    dpkg -s build-essential &> /dev/null && info "build-essential 已安装" || { warn "build-essential 未安装"; NEED_INSTALL_BUILD=true; }
+    dpkg -s libsqlite3-dev &> /dev/null  && info "libsqlite3-dev 已安装"  || { warn "libsqlite3-dev 未安装";  NEED_INSTALL_BUILD=true; }
 fi
 
-# 检查 git
-echo ""
-echo "[4/6] 检查 git..."
-check_command git
-if [ $? -eq 1 ]; then
-    NEED_INSTALL_GIT=true
-fi
+# ─── 检查 git ───
+step "4/5" "检查 git"
+NEED_INSTALL_GIT=false
+check_command git || NEED_INSTALL_GIT=true
 
-# 检查 build-essential
-echo ""
-echo "[5/6] 检查 build-essential..."
-if dpkg -s build-essential &> /dev/null; then
-    echo -e "${GREEN}✓ build-essential 已安装${NC}"
-else
-    echo -e "${YELLOW}⚠ build-essential 未安装${NC}"
-    NEED_INSTALL_BUILD=true
-fi
+# ─── 检查 pm2 ───
+step "5/5" "检查 pm2"
+NEED_INSTALL_PM2=false
+check_command pm2 || NEED_INSTALL_PM2=true
 
-# 检查 pm2
+# ─── 汇总结果 ───
 echo ""
-echo "[6/6] 检查 pm2..."
-if check_command pm2; then
-    echo "  版本: $(pm2 --version)"
-else
-    NEED_INSTALL_PM2=true
-fi
-
-echo ""
-echo "=========================================="
-echo "检查完成！"
-echo ""
-
-# 汇总需要安装的组件
-INSTALL_LIST=""
-if [ "$NEED_INSTALL_NODE" = true ]; then
-    INSTALL_LIST="$INSTALL_LIST Node.js"
-fi
-if [ "$NEED_INSTALL_GIT" = true ]; then
-    INSTALL_LIST="$INSTALL_LIST Git"
-fi
-if [ "$NEED_INSTALL_BUILD" = true ]; then
-    INSTALL_LIST="$INSTALL_LIST build-essential"
-fi
-if [ "$NEED_INSTALL_PM2" = true ]; then
-    INSTALL_LIST="$INSTALL_LIST PM2"
-fi
-
-if [ -z "$INSTALL_LIST" ]; then
-    echo -e "${GREEN}所有环境已就绪！${NC}"
+if ! $NEED_INSTALL_NODE && ! $NEED_INSTALL_GIT && ! $NEED_INSTALL_BUILD && ! $NEED_INSTALL_PM2; then
+    success "所有环境已就绪！"
     exit 0
 fi
 
-echo -e "${YELLOW}需要安装以下组件:$INSTALL_LIST${NC}"
+echo -n "需要安装:"
+$NEED_INSTALL_NODE  && echo -n " Node.js"
+$NEED_INSTALL_BUILD && echo -n " 编译工具链"
+$NEED_INSTALL_GIT   && echo -n " Git"
+$NEED_INSTALL_PM2   && echo -n " PM2"
 echo ""
 
-# 询问用户是否继续
 read -p "是否继续安装？(y/n): " -n 1 -r
 echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "安装已取消"
-    exit 1
-fi
+[[ ! $REPLY =~ ^[Yy]$ ]] && { info "安装已取消"; exit 1; }
 
-# 开始安装
 echo ""
-echo "=========================================="
-echo "开始安装..."
-echo "=========================================="
-echo ""
+header "开始安装"
 
-# 更新包列表
-echo "更新软件包列表..."
-apt update -y
+$NEED_INSTALL_BUILD && {
+    info "安装编译工具..."
+    if [ "$PKG_MANAGER" = "apt" ]; then
+        apt-get update -y
+        apt-get install -y build-essential libsqlite3-dev python3 make g++
+    elif [ "$PKG_MANAGER" = "yum" ]; then
+        yum install -y make gcc gcc-c++ python3 sqlite-devel
+    elif [ "$PKG_MANAGER" = "dnf" ]; then
+        dnf install -y make gcc gcc-c++ python3 sqlite-devel
+    fi
+    success "编译工具安装完成"
+}
 
-# 安装 Node.js
-if [ "$NEED_INSTALL_NODE" = true ]; then
-    echo ""
-    echo "安装 Node.js 18.x..."
-    curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-    apt install -y nodejs
-    echo -e "${GREEN}✓ Node.js 安装完成${NC}"
-fi
+$NEED_INSTALL_NODE && {
+    info "安装 Node.js LTS..."
+    if [ "$PKG_MANAGER" = "apt" ]; then
+        curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+        apt-get install -y nodejs
+    elif [ "$PKG_MANAGER" = "yum" ] || [ "$PKG_MANAGER" = "dnf" ]; then
+        curl -fsSL https://rpm.nodesource.com/setup_lts.x | bash -
+        $PKG_INSTALL nodejs
+    fi
+    success "Node.js 安装完成 ($(node --version))"
+}
 
-# 安装 Git
-if [ "$NEED_INSTALL_GIT" = true ]; then
-    echo ""
-    echo "安装 Git..."
-    apt install -y git
-    echo -e "${GREEN}✓ Git 安装完成${NC}"
-fi
+$NEED_INSTALL_GIT && {
+    $PKG_INSTALL git
+    success "Git 安装完成"
+}
 
-# 安装 build-essential
-if [ "$NEED_INSTALL_BUILD" = true ]; then
-    echo ""
-    echo "安装 build-essential..."
-    apt install -y build-essential
-    echo -e "${GREEN}✓ build-essential 安装完成${NC}"
-fi
-
-# 安装 pm2
-if [ "$NEED_INSTALL_PM2" = true ]; then
-    echo ""
-    echo "安装 PM2..."
+$NEED_INSTALL_PM2 && {
     npm install -g pm2
-    pm2 startup
-    echo -e "${GREEN}✓ PM2 安装完成${NC}"
-fi
+    success "PM2 安装完成"
+}
 
 echo ""
-echo "=========================================="
-echo -e "${GREEN}环境安装完成！${NC}"
-echo "=========================================="
+success "环境安装完成！"

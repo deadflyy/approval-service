@@ -3,86 +3,106 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+source "$SCRIPT_DIR/common.sh"
 
-# 颜色定义
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+header "党组织建设批复系统 - 一键部署"
 
-echo "=========================================="
-echo "    党组织建设批复系统 - 一键部署"
-echo "=========================================="
-echo ""
-echo "项目目录: $PROJECT_DIR"
-echo ""
+info "项目目录: $PROJECT_DIR"
 
-# 检查是否 root 用户
 if [ "$EUID" -ne 0 ]; then
-    echo -e "${YELLOW}警告: 建议使用 root 用户或 sudo 运行此脚本${NC}"
-    echo ""
+    warn "建议使用 root 用户或 sudo 运行此脚本"
 fi
 
-# 步骤1: 环境检测与安装
-echo "[1/6] 环境检测与安装..."
+# ─── 检查已有服务 ───
+BACKEND_STATUS=$(pm2_get_status "approval-backend")
+FRONTEND_STATUS=$(pm2_get_status "approval-frontend")
+
+if [ "$BACKEND_STATUS" != "not_deployed" ] || [ "$FRONTEND_STATUS" != "not_deployed" ]; then
+    echo ""
+    warn "检测到已有服务在运行："
+    [ "$BACKEND_STATUS" != "not_deployed" ]  && pm2_show_status "approval-backend"  "后端"
+    [ "$FRONTEND_STATUS" != "not_deployed" ] && pm2_show_status "approval-frontend" "前端"
+    echo ""
+    echo "  重新部署将停止现有服务并重新安装所有依赖。"
+    echo ""
+    read -p "是否继续重新部署？(y/n): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        info "部署已取消"
+        exit 0
+    fi
+fi
+
+# ─── 1. 环境检测 ───
+step "1/7" "环境检测与安装"
 "$SCRIPT_DIR/setup-env.sh"
 
-# 步骤2: 安装后端依赖
-echo ""
-echo "[2/6] 安装后端依赖..."
-cd "$PROJECT_DIR/backend"
-if [ ! -d "node_modules" ]; then
-    npm install
-fi
-echo -e "${GREEN}✓ 后端依赖安装完成${NC}"
+# ─── 2. 安装后端依赖 ───
+step "2/7" "安装后端依赖"
+cd "$BACKEND_DIR"
+rm -rf node_modules package-lock.json
+npm install || { fail "npm install 失败"; exit 1; }
+success "后端依赖安装完成"
 
-# 步骤3: 数据库初始化
-echo ""
-echo "[3/6] 数据库初始化..."
+# ─── 3. 编译 better-sqlite3 原生模块 ───
+step "3/7" "编译 better-sqlite3"
+cd "$BACKEND_DIR"
+npx --yes node-gyp rebuild --directory=node_modules/better-sqlite3 || {
+    fail "better-sqlite3 编译失败"
+    echo ""
+    echo "  请确认编译工具已安装: ./setup-env.sh"
+    exit 1
+}
+success "better-sqlite3 编译完成"
+
+# ─── 4. 验证 better-sqlite3 ───
+step "4/7" "验证 better-sqlite3"
+if verify_better_sqlite3; then
+    success "better-sqlite3 可用"
+else
+    fail "better-sqlite3 不可用"
+    echo ""
+    echo "  运行修复脚本: ./fix-sqlite3.sh"
+    exit 1
+fi
+
+# ─── 5. 数据库初始化 ───
+step "5/7" "数据库初始化"
 "$SCRIPT_DIR/init-db.sh"
 
-# 步骤4: 启动后端服务
-echo ""
-echo "[4/6] 启动后端服务..."
-"$SCRIPT_DIR/backend.sh" stop 2>/dev/null || true
+# ─── 6. 启动后端服务 ───
+step "6/7" "启动后端服务"
+pm2_stop_safe "approval-backend"
 "$SCRIPT_DIR/backend.sh" start
 
-# 步骤5: 安装前端依赖并构建
-echo ""
-echo "[5/6] 安装前端依赖并构建..."
-cd "$PROJECT_DIR/frontend"
-if [ ! -d "node_modules" ]; then
-    npm install
-fi
-"$SCRIPT_DIR/frontend.sh" build
-
-# 步骤6: 启动前端服务
-echo ""
-echo "[6/6] 启动前端服务..."
-"$SCRIPT_DIR/frontend.sh" stop 2>/dev/null || true
+# ─── 7. 构建并启动前端 ───
+step "7/7" "构建并启动前端"
+cd "$FRONTEND_DIR"
+rm -rf node_modules package-lock.json
+npm install || { fail "前端 npm install 失败"; exit 1; }
+npm run build || { fail "前端构建失败"; exit 1; }
+pm2_stop_safe "approval-frontend"
 "$SCRIPT_DIR/frontend.sh" start
 
+# ─── 输出部署结果 ───
 echo ""
-echo "=========================================="
-echo -e "${GREEN}部署完成！${NC}"
-echo "=========================================="
+header "部署完成"
 echo ""
-echo "服务信息:"
-"$SCRIPT_DIR/backend.sh" status
-"$SCRIPT_DIR/frontend.sh" status
+
+LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || ifconfig 2>/dev/null | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | head -1 || echo "localhost")
+
+pm2_show_status "approval-backend"  "后端服务"
+pm2_show_status "approval-frontend" "前端服务"
 echo ""
-echo "访问地址:"
-echo "  前端: http://$(hostname -I | awk '{print $1}'):4173"
-echo "  后端: http://$(hostname -I | awk '{print $1}'):3000"
+echo "  前端访问: http://${LOCAL_IP}:4173"
+echo "  后端 API: http://${LOCAL_IP}:3000"
 echo ""
-echo "默认管理员账号:"
-echo "  用户名: admin"
-echo "  密码: admin123"
+echo "  默认管理员: admin / admin123"
 echo ""
-echo "服务管理命令:"
-echo "  后端: $SCRIPT_DIR/backend.sh {start|stop|restart|status|logs}"
-echo "  前端: $SCRIPT_DIR/frontend.sh {start|stop|restart|status|logs|build}"
+warn "请及时修改默认管理员密码！"
 echo ""
-echo "注意: 请及时修改默认管理员密码！"
+echo "  服务管理:"
+echo "    所有服务: $SCRIPT_DIR/service.sh {start|stop|restart|status|logs}"
+echo "    后端:     $SCRIPT_DIR/backend.sh {start|stop|restart|status|logs}"
+echo "    前端:     $SCRIPT_DIR/frontend.sh {start|stop|restart|status|logs|build}"
 echo ""

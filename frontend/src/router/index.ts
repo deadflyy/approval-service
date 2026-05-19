@@ -72,12 +72,12 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, _from, next) => {
   const authStore = useAuthStore()
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next('/login')
-  } else if (to.meta.roles && !to.meta.roles.includes(authStore.user?.role)) {
+  } else if ((to.meta as { roles?: string[] }).roles && !(to.meta as { roles?: string[] }).roles.includes(authStore.user?.role || '')) {
     next('/dashboard')
   } else {
     next()

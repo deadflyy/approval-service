@@ -185,7 +185,11 @@ import api from '../api'
 const router = useRouter()
 const authStore = useAuthStore()
 const loading = ref(false)
-const organizations = ref([])
+interface Organization {
+  id: number
+  name: string
+}
+const organizations = ref<Organization[]>([])
 const categories = ['成立', '换届', '增补', '调整', '更名', '撤销', '延期', '架构调整']
 
 const stepsByCategory: Record<string, string[]> = {

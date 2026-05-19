@@ -1,111 +1,71 @@
 #!/bin/bash
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-BACKEND_DIR="$PROJECT_DIR/backend"
+source "$SCRIPT_DIR/common.sh"
+
 PM2_NAME="approval-backend"
 
-# 颜色定义
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-
-# 打印帮助
 show_help() {
-    echo "党组织建设批复系统 - 后端服务管理"
+    echo "后端服务管理"
     echo ""
     echo "用法: $0 {start|stop|restart|status|logs}"
     echo ""
-    echo "命令说明:"
-    echo "  start    - 启动后端服务"
-    echo "  stop     - 停止后端服务"
-    echo "  restart  - 重启后端服务"
-    echo "  status   - 查看服务状态"
-    echo "  logs     - 查看服务日志"
-    echo ""
+    echo "命令:"
+    echo "  start    启动后端服务"
+    echo "  stop     停止后端服务"
+    echo "  restart  重启后端服务"
+    echo "  status   查看服务状态"
+    echo "  logs     查看服务日志"
 }
 
-# 检查服务状态
-check_status() {
-    if pm2 describe "$PM2_NAME" &> /dev/null; then
-        STATUS=$(pm2 jlist | grep -A 10 "$PM2_NAME" | grep "status" | cut -d'"' -f4)
-        if [ "$STATUS" = "online" ]; then
-            echo -e "${GREEN}● 运行中${NC}"
-        else
-            echo -e "${YELLOW}● 已停止${NC}"
-        fi
-    else
-        echo -e "${RED}● 未部署${NC}"
-    fi
-}
-
-# 启动服务
 start_service() {
-    echo "启动后端服务..."
+    info "启动后端服务..."
     cd "$BACKEND_DIR"
-    
-    # 检查是否已安装依赖
-    if [ ! -d "node_modules" ]; then
-        echo "安装后端依赖..."
-        npm install
-    fi
-    
-    # 使用 pm2 启动
-    pm2 start "npm run dev" --name "$PM2_NAME" --cwd "$BACKEND_DIR"
-    
-    # 保存 pm2 进程列表
+
+    [ -d "node_modules" ] || {
+        info "安装后端依赖..."
+        npm install || { fail "依赖安装失败"; exit 1; }
+    }
+
+    pm2 start "npm run start" --name "$PM2_NAME" --cwd "$BACKEND_DIR" || {
+        fail "后端启动失败"
+        exit 1
+    }
     pm2 save
-    
-    echo -e "${GREEN}✓ 后端服务启动成功${NC}"
-    echo "  服务名: $PM2_NAME"
+    success "后端服务启动成功"
     echo "  地址: http://localhost:3000"
 }
 
-# 停止服务
 stop_service() {
-    echo "停止后端服务..."
-    pm2 stop "$PM2_NAME"
-    pm2 delete "$PM2_NAME"
-    pm2 save
-    echo -e "${GREEN}✓ 后端服务已停止${NC}"
+    info "停止后端服务..."
+    pm2_stop_safe "$PM2_NAME"
+    pm2 save 2>/dev/null || true
+    success "后端服务已停止"
 }
 
-# 重启服务
 restart_service() {
-    echo "重启后端服务..."
-    pm2 restart "$PM2_NAME"
-    echo -e "${GREEN}✓ 后端服务已重启${NC}"
-}
-
-# 查看日志
-show_logs() {
-    pm2 logs "$PM2_NAME"
-}
-
-# 主逻辑
-case "$1" in
-    start)
+    info "重启后端服务..."
+    if pm2 describe "$PM2_NAME" &> /dev/null; then
+        pm2 restart "$PM2_NAME"
+    else
         start_service
-        ;;
-    stop)
-        stop_service
-        ;;
-    restart)
-        restart_service
-        ;;
+        return
+    fi
+    success "后端服务已重启"
+}
+
+show_logs() {
+    pm2 logs "$PM2_NAME" --lines 50
+}
+
+case "${1:-}" in
+    start)   start_service ;;
+    stop)    stop_service ;;
+    restart) restart_service ;;
     status)
         echo "后端服务状态:"
-        check_status
-        pm2 list | grep -E "(PM2|name|$PM2_NAME)"
+        pm2_show_status "$PM2_NAME" "后端"
         ;;
-    logs)
-        show_logs
-        ;;
-    *)
-        show_help
-        exit 1
-        ;;
+    logs)    show_logs ;;
+    *)       show_help; exit 1 ;;
 esac
-
-exit 0
