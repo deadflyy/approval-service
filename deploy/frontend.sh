@@ -25,10 +25,10 @@ build_frontend() {
 
     [ -d "node_modules" ] || {
         info "安装前端依赖..."
-        npm install || { fail "依赖安装失败"; exit 1; }
+        npm install || { fail "依赖安装失败"; return 1; }
     }
 
-    npm run build || { fail "前端构建失败"; exit 1; }
+    npm run build || { fail "前端构建失败"; return 1; }
     success "前端构建完成"
 }
 
@@ -38,18 +38,27 @@ start_service() {
 
     [ -d "node_modules" ] || {
         info "安装前端依赖..."
-        npm install || { fail "依赖安装失败"; exit 1; }
+        npm install || { fail "依赖安装失败"; return 1; }
     }
 
     [ -d "dist" ] || build_frontend
 
-    pm2 start "npm run preview" --name "$PM2_NAME" --cwd "$FRONTEND_DIR" || {
-        fail "前端启动失败"
-        exit 1
-    }
-    pm2 save
-    success "前端服务启动成功"
-    echo "  地址: http://localhost:4173"
+    pm2 start "npm run preview" --name "$PM2_NAME" --cwd "$FRONTEND_DIR"
+    pm2 save 2>/dev/null
+
+    # 等待 2 秒后检查状态
+    sleep 2
+    local status
+    status=$(pm2_get_status "$PM2_NAME")
+    if [ "$status" = "online" ]; then
+        success "前端服务启动成功"
+        echo "  地址: http://localhost:4173"
+    else
+        fail "前端服务启动异常 (状态: $status)"
+        echo ""
+        echo "  查看日志: $0 logs"
+        return 1
+    fi
 }
 
 stop_service() {
@@ -63,11 +72,20 @@ restart_service() {
     info "重启前端服务..."
     if pm2 describe "$PM2_NAME" &> /dev/null; then
         pm2 restart "$PM2_NAME"
+        sleep 2
+        local status
+        status=$(pm2_get_status "$PM2_NAME")
+        if [ "$status" = "online" ]; then
+            success "前端服务已重启"
+        else
+            fail "重启后服务异常 (状态: $status)"
+            echo "  查看日志: $0 logs"
+            return 1
+        fi
     else
+        warn "服务未部署，执行启动..."
         start_service
-        return
     fi
-    success "前端服务已重启"
 }
 
 show_logs() {
