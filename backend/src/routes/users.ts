@@ -90,9 +90,17 @@ router.delete('/:id', requireRole('admin'), (req: AuthRequest, res: Response) =>
   res.json({ message: '删除成功' });
 });
 
-router.get('/:id/organizations', requireRole('admin'), (req: AuthRequest, res: Response) => {
+router.get('/:id/organizations', (req: AuthRequest, res: Response) => {
   const { id } = req.params;
   const db = req.app.locals.db;
+
+  if (!req.user) {
+    return res.status(401).json({ error: '未认证' });
+  }
+
+  if (req.user.role !== 'admin' && Number(id) !== req.user.id) {
+    return res.status(403).json({ error: '权限不足' });
+  }
 
   const orgs = db.prepare(`
     SELECT o.* FROM organizations o
